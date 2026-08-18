@@ -5,19 +5,23 @@ on:
     - cron: "*/5 * * * *"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   check-live:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check YouTube LIVE
+      - name: Pobierz repozytorium
+        uses: actions/checkout@v4
+
+      - name: Sprawdź YouTube LIVE
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           CHANNEL_ID: UCEbc4QI1Rbg5fYlL1XRPgQg
         run: |
-          mkdir -p state
-
           RESPONSE=$(curl -s "https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=$CHANNEL_ID&eventType=live&type=video&key=$YOUTUBE_API_KEY")
 
           VIDEO_ID=$(echo "$RESPONSE" | jq -r '.items[0].id.videoId // empty')
@@ -25,18 +29,25 @@ jobs:
 
           LAST_VIDEO_ID=""
 
-          if [ -f state/last_live.txt ]; then
-            LAST_VIDEO_ID=$(cat state/last_live.txt)
+          if [ -f .last_live ]; then
+            LAST_VIDEO_ID=$(cat .last_live)
           fi
 
           if [ -n "$VIDEO_ID" ] && [ "$VIDEO_ID" != "$LAST_VIDEO_ID" ]; then
-            echo "Nowy LIVE znaleziony: $TITLE"
+            echo "Nowy LIVE: $TITLE"
 
             curl -H "Content-Type: application/json" \
               -d "{\"content\":\"🔴 **ACE POINT TENNIS JEST LIVE!** 🎾\\n\\n**$TITLE**\\n👉 https://www.youtube.com/watch?v=$VIDEO_ID\"}" \
               "$DISCORD_WEBHOOK"
 
-            echo "$VIDEO_ID" > state/last_live.txt
+            echo "$VIDEO_ID" > .last_live
+
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+            git add .last_live
+            git commit -m "Zapisz ostatni LIVE"
+            git push
           else
             echo "Brak nowego LIVE."
           fi
