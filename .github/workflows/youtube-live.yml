@@ -16,17 +16,27 @@ jobs:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           CHANNEL_ID: UCEbc4QI1Rbg5fYlL1XRPgQg
         run: |
+          mkdir -p state
+
           RESPONSE=$(curl -s "https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=$CHANNEL_ID&eventType=live&type=video&key=$YOUTUBE_API_KEY")
 
           VIDEO_ID=$(echo "$RESPONSE" | jq -r '.items[0].id.videoId // empty')
           TITLE=$(echo "$RESPONSE" | jq -r '.items[0].snippet.title // empty')
 
-          if [ -n "$VIDEO_ID" ]; then
-            echo "LIVE znaleziony: $TITLE"
+          LAST_VIDEO_ID=""
+
+          if [ -f state/last_live.txt ]; then
+            LAST_VIDEO_ID=$(cat state/last_live.txt)
+          fi
+
+          if [ -n "$VIDEO_ID" ] && [ "$VIDEO_ID" != "$LAST_VIDEO_ID" ]; then
+            echo "Nowy LIVE znaleziony: $TITLE"
 
             curl -H "Content-Type: application/json" \
-              -d "{\"content\":\"🔴 **ACE POINT TENNIS JEST LIVE!** 🎾\\n\\n**$TITLE**\\nhttps://www.youtube.com/watch?v=$VIDEO_ID\"}" \
+              -d "{\"content\":\"🔴 **ACE POINT TENNIS JEST LIVE!** 🎾\\n\\n**$TITLE**\\n👉 https://www.youtube.com/watch?v=$VIDEO_ID\"}" \
               "$DISCORD_WEBHOOK"
+
+            echo "$VIDEO_ID" > state/last_live.txt
           else
-            echo "Brak aktywnego LIVE."
+            echo "Brak nowego LIVE."
           fi
